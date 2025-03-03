@@ -67,15 +67,45 @@
       // Normalize pixel coordinates (0.0 to 1.0).
       vec2 uv = gl_FragCoord.xy / u_resolution;
       
-      // Scale and pan for cloud details.
+      // Scale for cloud details.
       float zoom = 3.0;
-      vec2 pos = uv * zoom;
+      vec2 basePos = uv * zoom;
       
-      // Animate clouds with variable motion speed and direction.
-      pos += u_time * u_motionSpeed * u_motionDirection;
+      // Create a fixed flow field in world space
+      // These positions remain constant and don't move with the clouds
+      vec2 flowPos = basePos;
       
-      // Add turbulence for natural evolution.
-      pos += vec2(0.05 * sin(u_time * 0.3), 0.05 * cos(u_time * 0.3));
+      // Create local time offsets that vary across the cloud field
+      // This completely desynchronizes the clouds from each other
+      float timeOffset = noise(flowPos * 0.02 + vec2(210.0, 220.0)) * 20.0; // Range: 0 to 20 seconds
+      float localTime = u_time + timeOffset;
+      
+      // Create local time scaling factors to further desynchronize
+      float timeScale = 0.7 + noise(flowPos * 0.03 + vec2(230.0, 240.0)) * 0.6; // Range: 0.7 to 1.3
+      float scaledTime = localTime * timeScale;
+      
+      // Create spatially varying motion speeds and directions using the fixed flow field
+      float speedVariation = noise(flowPos * 0.1 + vec2(30.0, 40.0)) * 0.8 + 0.4; // Range: 0.4 to 1.2
+      
+      // Use constant direction of movement as requested
+      // Remove the local direction and blending code to maintain constant direction
+      
+      // Apply the flow field to the position using local time but constant direction
+      vec2 pos = basePos + scaledTime * u_motionSpeed * speedVariation * u_motionDirection;
+      
+      // Create spatially varying turbulence parameters
+      // Vary the amplitude and frequency of the turbulence based on position
+      float turbAmpX = 0.03 + noise(flowPos * 0.07 + vec2(90.0, 100.0)) * 0.05; // Range: 0.03 to 0.08
+      float turbAmpY = 0.03 + noise(flowPos * 0.07 + vec2(110.0, 120.0)) * 0.05; // Range: 0.03 to 0.08
+      float turbFreqX = 0.2 + noise(flowPos * 0.06 + vec2(130.0, 140.0)) * 0.3; // Range: 0.2 to 0.5
+      float turbFreqY = 0.2 + noise(flowPos * 0.06 + vec2(150.0, 160.0)) * 0.3; // Range: 0.2 to 0.5
+      
+      // Add small turbulence for natural evolution using local time
+      // Keep this small to not disrupt the constant direction too much
+      pos += vec2(
+        turbAmpX * 0.5 * sin(scaledTime * turbFreqX + noise(flowPos * 0.1) * 6.28), 
+        turbAmpY * 0.5 * cos(scaledTime * turbFreqY + noise(flowPos * 0.1 + vec2(10.0, 20.0)) * 6.28)
+      );
       
       // Base cloud density from fbm.
       float n = fbm(pos);
@@ -85,25 +115,292 @@
       float depthNoise = fbm(pos * 0.7 + 10.0);
       depthNoise = pow(depthNoise, 1.5);  // sharpen contrast
       
-      // --- Fixed Evolution Type ---
-      // Use a low-frequency noise to assign each area an evolution type:
-      // evolveType = 1.0 means this region will only grow (clouds get thicker);
-      // evolveType = 0.0 means this region will only dissipate (clouds thin out).
-      float evolveType = step(0.5, noise(pos * 0.1 + vec2(10.0, 20.0)));
+      // --- Cloud Evolution with Complete Desynchronization ---
+      // Use fixed positions for evolution type to ensure stability
+      float evolveType = noise(flowPos * 0.02 + vec2(10.0, 20.0)); // Range: 0.0 to 1.0 (continuous)
       
-      // Vary the local growth/dissipation rate using another low-frequency noise.
-      float baseRate = noise(pos * 0.05 + vec2(5.0));
-      float growthRate = 0.05 + 0.05 * baseRate;  // varies between about 0.05 and 0.1
+      // Create multiple independent oscillators with different frequencies and phases
+      // This ensures that different parts of the cloud field have completely different growth patterns
+      float oscillator1 = sin(scaledTime * 0.2 + noise(flowPos * 0.04 + vec2(250.0, 260.0)) * 10.0);
+      float oscillator2 = sin(scaledTime * 0.3 + noise(flowPos * 0.05 + vec2(270.0, 280.0)) * 10.0);
+      float oscillator3 = sin(scaledTime * 0.5 + noise(flowPos * 0.06 + vec2(290.0, 300.0)) * 10.0);
       
-      // Compute local evolution monotonically.
-      // Regions with evolveType==1 will increase from 0.5 upward,
-      // while regions with evolveType==0 will decrease from 0.5 downward.
-      float localEvolve = clamp(0.5 + (evolveType * 2.0 - 1.0) * u_time * growthRate, 0.0, 1.0);
+      // Blend the oscillators based on spatial position
+      float oscBlend1 = noise(flowPos * 0.03 + vec2(310.0, 320.0));
+      float oscBlend2 = noise(flowPos * 0.03 + vec2(330.0, 340.0));
       
-      // Adjust the cloud formation threshold:
-      // Base threshold now varies between 0.25 and 0.75,
-      // and depth noise is multiplied by 0.7.
-      float threshold = mix(0.25, 0.75, localEvolve) - u_cloudDensity * 0.1 - (depthNoise * 0.7);
+      // Create a composite oscillator that varies completely across the cloud field
+      float compositeOsc = mix(
+        mix(oscillator1, oscillator2, oscBlend1),
+        oscillator3,
+        oscBlend2
+      );
+      
+      // Create growth direction vectors that vary across the cloud field
+      // This determines the direction in which clouds grow/dissipate
+      float growthAngle = noise(flowPos * 0.02 + vec2(370.0, 380.0)) * 6.28; // 0 to 2π
+      vec2 growthDirection = vec2(cos(growthAngle), sin(growthAngle));
+      
+      // Create growth magnitude that varies across the cloud field
+      float growthMagnitude = 0.1 + noise(flowPos * 0.03 + vec2(390.0, 400.0)) * 0.4; // Range: 0.1 to 0.5
+      
+      // Vary the local growth/dissipation rate using another low-frequency noise
+      float baseRate = noise(flowPos * 0.05 + vec2(5.0));
+      float growthRate = 0.05 + 0.15 * baseRate;  // Range: 0.05 to 0.2
+      
+      // Create a growth bias that varies spatially
+      // Some areas will tend to grow more, others will tend to dissipate more
+      float growthBias = noise(flowPos * 0.02 + vec2(350.0, 360.0)) * 0.6 - 0.3; // Range: -0.3 to 0.3
+      
+      // MODIFIED: Remove the central inflection point by changing how directional growth is calculated
+      // Instead of using a single center point (0.5, 0.5), create multiple offset reference points
+      vec2 refPoint1 = vec2(
+        0.3 + 0.4 * noise(vec2(localTime * 0.01, 0.0)),
+        0.3 + 0.4 * noise(vec2(0.0, localTime * 0.012))
+      );
+      
+      vec2 refPoint2 = vec2(
+        0.4 + 0.4 * noise(vec2(localTime * 0.008 + 100.0, 50.0)),
+        0.4 + 0.4 * noise(vec2(70.0, localTime * 0.009 + 120.0))
+      );
+      
+      vec2 refPoint3 = vec2(
+        0.5 + 0.4 * noise(vec2(localTime * 0.011 + 200.0, 150.0)),
+        0.5 + 0.4 * noise(vec2(170.0, localTime * 0.007 + 220.0))
+      );
+      
+      // Calculate directional growth from multiple reference points
+      float directionalGrowth1 = dot(normalize(uv - refPoint1), growthDirection) * growthMagnitude;
+      float directionalGrowth2 = dot(normalize(uv - refPoint2), vec2(growthDirection.y, -growthDirection.x)) * growthMagnitude;
+      float directionalGrowth3 = dot(normalize(uv - refPoint3), vec2(-growthDirection.x, -growthDirection.y)) * growthMagnitude;
+      
+      // Blend between the different directional growth values based on position
+      // This creates a more distributed growth pattern without a central inflection point
+      float blendFactor1 = fbm(uv * 2.0 + vec2(localTime * 0.02, 0.0));
+      float blendFactor2 = fbm(uv * 2.0 + vec2(0.0, localTime * 0.02));
+      
+      // Combine the directional growth values with smooth blending
+      float directionalGrowth = mix(
+        mix(directionalGrowth1, directionalGrowth2, blendFactor1),
+        directionalGrowth3,
+        blendFactor2
+      );
+      
+      // Apply additional spatial variation to further break up any patterns
+      directionalGrowth *= 0.7 + 0.6 * fbm(uv * 3.0 + localTime * 0.03);
+      
+      // ---- NEW: Create flowing areas of growth and shrinkage ----
+      
+      // Create slow-moving growth/shrinkage field centers
+      // These are the centers of areas where clouds grow or shrink
+      // MODIFIED: Use more varied positions and movements to avoid central patterns
+      vec2 growthField1Center = vec2(
+        0.3 + 0.8 * cos(localTime * 0.03),
+        0.4 + 0.7 * sin(localTime * 0.05)
+      );
+      
+      vec2 growthField2Center = vec2(
+        0.7 + 0.6 * cos(localTime * 0.04 + 2.1),
+        0.3 + 0.6 * sin(localTime * 0.06 + 1.3)
+      );
+      
+      vec2 shrinkField1Center = vec2(
+        0.2 + 0.65 * cos(localTime * 0.035 + 3.7),
+        0.7 + 0.65 * sin(localTime * 0.045 + 4.2)
+      );
+      
+      vec2 shrinkField2Center = vec2(
+        0.8 + 0.75 * cos(localTime * 0.025 + 5.3),
+        0.6 + 0.75 * sin(localTime * 0.055 + 0.7)
+      );
+      
+      // Add more growth/shrinkage fields to create a more distributed pattern
+      vec2 growthField3Center = vec2(
+        0.5 + 0.7 * cos(localTime * 0.022 + 1.1),
+        0.2 + 0.6 * sin(localTime * 0.033 + 2.2)
+      );
+      
+      vec2 shrinkField3Center = vec2(
+        0.4 + 0.6 * cos(localTime * 0.027 + 4.3),
+        0.8 + 0.7 * sin(localTime * 0.038 + 3.4)
+      );
+      
+      // Calculate distances to growth/shrinkage field centers
+      float distToGrowth1 = length(uv - growthField1Center);
+      float distToGrowth2 = length(uv - growthField2Center);
+      float distToGrowth3 = length(uv - growthField3Center);
+      float distToShrink1 = length(uv - shrinkField1Center);
+      float distToShrink2 = length(uv - shrinkField2Center);
+      float distToShrink3 = length(uv - shrinkField3Center);
+      
+      // Create smooth falloff for growth/shrinkage fields
+      // These fields have varying sizes that pulse over time
+      float growthField1Size = 0.3 + 0.1 * sin(localTime * 0.1);
+      float growthField2Size = 0.25 + 0.08 * sin(localTime * 0.12 + 1.5);
+      float growthField3Size = 0.28 + 0.09 * sin(localTime * 0.11 + 2.5);
+      float shrinkField1Size = 0.28 + 0.09 * sin(localTime * 0.09 + 2.7);
+      float shrinkField2Size = 0.32 + 0.11 * sin(localTime * 0.11 + 3.9);
+      float shrinkField3Size = 0.26 + 0.10 * sin(localTime * 0.10 + 4.9);
+      
+      // Create wider transition zones for smoother blending between growth and shrinkage
+      float growthField1Outer = growthField1Size * 1.8;
+      float growthField2Outer = growthField2Size * 1.8;
+      float growthField3Outer = growthField3Size * 1.8;
+      float shrinkField1Outer = shrinkField1Size * 1.8;
+      float shrinkField2Outer = shrinkField2Size * 1.8;
+      float shrinkField3Outer = shrinkField3Size * 1.8;
+      
+      // Calculate field influence with much smoother falloff using cubic smoothstep
+      // This creates a more gradual transition at the edges
+      float growthField1 = smoothstep(growthField1Outer, 0.0, distToGrowth1);
+      growthField1 = growthField1 * growthField1 * (3.0 - 2.0 * growthField1); // Apply cubic smoothing
+      
+      float growthField2 = smoothstep(growthField2Outer, 0.0, distToGrowth2);
+      growthField2 = growthField2 * growthField2 * (3.0 - 2.0 * growthField2);
+      
+      float growthField3 = smoothstep(growthField3Outer, 0.0, distToGrowth3);
+      growthField3 = growthField3 * growthField3 * (3.0 - 2.0 * growthField3);
+      
+      float shrinkField1 = smoothstep(shrinkField1Outer, 0.0, distToShrink1);
+      shrinkField1 = shrinkField1 * shrinkField1 * (3.0 - 2.0 * shrinkField1);
+      
+      float shrinkField2 = smoothstep(shrinkField2Outer, 0.0, distToShrink2);
+      shrinkField2 = shrinkField2 * shrinkField2 * (3.0 - 2.0 * shrinkField2);
+      
+      float shrinkField3 = smoothstep(shrinkField3Outer, 0.0, distToShrink3);
+      shrinkField3 = shrinkField3 * shrinkField3 * (3.0 - 2.0 * shrinkField3);
+      
+      // Vary the magnitude of growth/shrinkage based on position and time
+      float growthMag1 = 0.2 + 0.1 * sin(localTime * 0.17 + noise(flowPos * 0.2) * 5.0);
+      float growthMag2 = 0.15 + 0.08 * sin(localTime * 0.19 + noise(flowPos * 0.25) * 4.0);
+      float growthMag3 = 0.18 + 0.09 * sin(localTime * 0.18 + noise(flowPos * 0.22) * 4.5);
+      float shrinkMag1 = 0.18 + 0.09 * sin(localTime * 0.15 + noise(flowPos * 0.22) * 4.5);
+      float shrinkMag2 = 0.22 + 0.11 * sin(localTime * 0.13 + noise(flowPos * 0.18) * 5.5);
+      float shrinkMag3 = 0.20 + 0.10 * sin(localTime * 0.14 + noise(flowPos * 0.20) * 5.0);
+      
+      // Create a global flow field for smoother transitions
+      // This field will help blend between growth and shrinkage areas
+      float transitionField = fbm(uv * 2.0 + localTime * 0.02);
+      transitionField = transitionField * 2.0 - 1.0; // Range: -1 to 1
+      
+      // MODIFIED: Add more complex spatial variation to the transition field
+      // This helps break up any central patterns
+      transitionField += 0.3 * fbm(uv * 4.0 + localTime * 0.03);
+      transitionField *= 0.8 + 0.4 * fbm(uv * 1.5 + localTime * 0.01);
+      transitionField = clamp(transitionField, -1.0, 1.0);
+      
+      // Apply the transition field to soften the contrast between growth and shrinkage
+      growthField1 *= 0.8 + 0.2 * smoothstep(-1.0, 1.0, transitionField);
+      growthField2 *= 0.8 + 0.2 * smoothstep(-0.8, 0.8, transitionField + 0.2);
+      growthField3 *= 0.8 + 0.2 * smoothstep(-0.9, 0.9, transitionField - 0.1);
+      shrinkField1 *= 0.8 + 0.2 * smoothstep(1.0, -1.0, transitionField - 0.1);
+      shrinkField2 *= 0.8 + 0.2 * smoothstep(0.8, -0.8, transitionField - 0.3);
+      shrinkField3 *= 0.8 + 0.2 * smoothstep(0.9, -0.9, transitionField + 0.2);
+      
+      // Create a neutral zone where neither growth nor shrinkage dominates
+      // This helps create smoother transitions between opposing forces
+      float neutralZone = fbm(uv * 3.0 + localTime * 0.04) * 0.5;
+      
+      // MODIFIED: Add more spatial variation to the neutral zone
+      neutralZone = mix(neutralZone, fbm(uv * 5.0 + localTime * 0.06) * 0.5, 0.4);
+      
+      // Combine growth and shrinkage fields with smoother blending
+      float growthComponent = growthField1 * growthMag1 + growthField2 * growthMag2 + growthField3 * growthMag3;
+      float shrinkComponent = shrinkField1 * shrinkMag1 + shrinkField2 * shrinkMag2 + shrinkField3 * shrinkMag3;
+      
+      // Calculate the difference between growth and shrinkage with a neutral buffer
+      float growthDiff = growthComponent - shrinkComponent;
+      
+      // MODIFIED: Add spatial variation to the growth difference
+      // This helps eliminate any central patterns
+      growthDiff *= 0.8 + 0.4 * fbm(uv * 2.5 + localTime * 0.05);
+      
+      // Apply a soft threshold to create a neutral zone where forces are balanced
+      float softThreshold = smoothstep(-0.15, 0.15, growthDiff) * 2.0 - 1.0;
+      
+      // Blend with the neutral zone to create areas of stability
+      float growthFieldInfluence = mix(growthDiff, softThreshold * max(growthComponent, shrinkComponent), neutralZone);
+      
+      // Add layered noise at different scales for more natural transitions
+      growthFieldInfluence += fbm(uv * 4.0 + localTime * 0.1) * 0.05;
+      growthFieldInfluence += fbm(uv * 8.0 + localTime * 0.2) * 0.025;
+      growthFieldInfluence += fbm(uv * 16.0 + localTime * 0.3) * 0.0125;
+      
+      // MODIFIED: Add more complex spatial variation to break up any central patterns
+      growthFieldInfluence *= 0.9 + 0.2 * fbm(uv * 3.5 + localTime * 0.15);
+      
+      // Apply a final smoothing to the overall influence
+      growthFieldInfluence = growthFieldInfluence * 0.8; // Reduce overall intensity for subtler effect
+      
+      // ---- END NEW SECTION ----
+      
+      // ---- NEW: Cloud Coverage Control ----
+      
+      // Create a slow-moving global coverage oscillator (period of about 2-3 minutes)
+      // This creates a very slow natural cycle between more and less cloud coverage
+      float coverageCycle = sin(localTime * 0.01) * 0.5 + 0.5; // Range: 0.0 to 1.0
+      
+      // Create a coverage target that varies between 0.3 (30%) and 0.7 (70%) coverage
+      // This ensures we stay well within the 5%-90% range while allowing natural variation
+      float targetCoverage = mix(0.3, 0.7, coverageCycle);
+      
+      // Create a coverage estimation based on the current cloud parameters
+      // This is a heuristic that approximates how much of the screen will be covered
+      float baseCloudiness = fbm(vec2(localTime * 0.05, localTime * 0.07)) * 0.3 + 0.5;
+      
+      // Calculate the coverage adjustment needed
+      // If baseCloudiness is high but targetCoverage is low, we need negative adjustment (more shrinkage)
+      // If baseCloudiness is low but targetCoverage is high, we need positive adjustment (more growth)
+      float coverageAdjustment = (targetCoverage - baseCloudiness) * 0.5;
+      
+      // MODIFIED: Add spatial variation to the coverage adjustment
+      // This helps eliminate any central patterns in the coverage control
+      coverageAdjustment *= 0.8 + 0.4 * fbm(uv * 2.0 + localTime * 0.08);
+      
+      // Apply the coverage adjustment to the growth field influence
+      growthFieldInfluence += coverageAdjustment;
+      
+      // Create an emergency override for extreme cases
+      // If clouds are about to disappear completely or take over the entire screen
+      float emergencyMin = smoothstep(0.05, 0.15, baseCloudiness) * 2.0 - 1.0; // Force growth if < 5% coverage
+      float emergencyMax = smoothstep(0.85, 0.95, baseCloudiness) * 2.0 - 1.0; // Force shrinkage if > 90% coverage
+      
+      // MODIFIED: Add spatial variation to the emergency overrides
+      // This prevents the emergency system from creating visible patterns
+      emergencyMin *= 0.7 + 0.6 * fbm(uv * 3.0 + localTime * 0.12);
+      emergencyMax *= 0.7 + 0.6 * fbm(uv * 3.0 + localTime * 0.14);
+      
+      // Apply emergency overrides - these take precedence over other factors when activated
+      growthFieldInfluence = mix(growthFieldInfluence, 0.5, max(0.0, emergencyMin)); // Force growth if too few clouds
+      growthFieldInfluence = mix(growthFieldInfluence, -0.5, max(0.0, -emergencyMax)); // Force shrinkage if too many clouds
+      
+      // ---- END CLOUD COVERAGE CONTROL ----
+      
+      // Combine everything to create a completely desynchronized evolution pattern with directional growth
+      // Add the growth field influence to the existing evolution factors
+      float localEvolve = 0.5 + 
+                         (compositeOsc * 0.25) + 
+                         (evolveType * 0.2 - 0.1) + 
+                         growthBias + 
+                         directionalGrowth * compositeOsc +
+                         growthFieldInfluence * 0.3; // Add growth field influence
+      
+      // MODIFIED: Add more spatial variation to the final evolution value
+      // This helps eliminate any central patterns
+      localEvolve = mix(localEvolve, 0.5 + fbm(uv * 2.5 + localTime * 0.07) * 0.6 - 0.3, 0.2);
+      
+      // Keep within reasonable range but allow for more extreme values in growth/shrinkage areas
+      localEvolve = clamp(localEvolve, 0.2, 0.8);
+      
+      // Adjust the cloud formation threshold
+      float threshold = localEvolve - u_cloudDensity * 0.1 - (depthNoise * 0.7);
+      
+      // Visualize growth/shrinkage fields (for debugging)
+      // Uncomment to see the growth/shrinkage fields
+      // float fieldViz = growthFieldInfluence * 0.5 + 0.5;
+      // gl_FragColor = vec4(fieldViz, fieldViz * 0.5, 1.0 - fieldViz, 1.0);
+      // return;
+      
       float cloudMask = smoothstep(threshold, threshold + 0.1, n);
       
       // --- Varying Cloud Color Based on Depth ---
