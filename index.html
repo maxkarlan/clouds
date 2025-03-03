@@ -125,14 +125,28 @@
       float oscillator2 = sin(scaledTime * 0.3 + noise(flowPos * 0.05 + vec2(270.0, 280.0)) * 10.0);
       float oscillator3 = sin(scaledTime * 0.5 + noise(flowPos * 0.06 + vec2(290.0, 300.0)) * 10.0);
       
+      // NEW: Add non-periodic oscillators using noise-based random walks
+      // These create more unpredictable patterns that don't repeat
+      float randomWalk1 = fbm(vec2(localTime * 0.02, localTime * 0.023)) * 2.0 - 1.0;
+      float randomWalk2 = fbm(vec2(localTime * 0.018 + 100.0, localTime * 0.025 + 50.0)) * 2.0 - 1.0;
+      float randomWalk3 = fbm(vec2(localTime * 0.022 + 200.0, localTime * 0.019 + 150.0)) * 2.0 - 1.0;
+      
       // Blend the oscillators based on spatial position
       float oscBlend1 = noise(flowPos * 0.03 + vec2(310.0, 320.0));
       float oscBlend2 = noise(flowPos * 0.03 + vec2(330.0, 340.0));
       
+      // NEW: Add random walk blending factor
+      float randomWalkBlend = fbm(flowPos * 0.04 + vec2(localTime * 0.01, localTime * 0.015)) * 0.6;
+      
       // Create a composite oscillator that varies completely across the cloud field
+      // NEW: Blend in the random walk oscillators for less repetitive patterns
       float compositeOsc = mix(
-        mix(oscillator1, oscillator2, oscBlend1),
-        oscillator3,
+        mix(
+          mix(oscillator1, randomWalk1, randomWalkBlend),
+          mix(oscillator2, randomWalk2, randomWalkBlend),
+          oscBlend1
+        ),
+        mix(oscillator3, randomWalk3, randomWalkBlend),
         oscBlend2
       );
       
@@ -191,64 +205,134 @@
       
       // ---- NEW: Create flowing areas of growth and shrinkage ----
       
+      // NEW: Create random walk paths for growth/shrinkage field centers
+      // These create non-repeating movement patterns that evolve over time
+      
+      // Generate random walk offsets using layered noise
+      vec2 randomWalkOffset1 = vec2(
+        fbm(vec2(localTime * 0.013, localTime * 0.017)) * 2.0 - 1.0,
+        fbm(vec2(localTime * 0.015, localTime * 0.011)) * 2.0 - 1.0
+      ) * 0.4; // Scale the offset
+      
+      vec2 randomWalkOffset2 = vec2(
+        fbm(vec2(localTime * 0.012 + 50.0, localTime * 0.018 + 30.0)) * 2.0 - 1.0,
+        fbm(vec2(localTime * 0.014 + 70.0, localTime * 0.016 + 90.0)) * 2.0 - 1.0
+      ) * 0.4;
+      
+      vec2 randomWalkOffset3 = vec2(
+        fbm(vec2(localTime * 0.011 + 120.0, localTime * 0.019 + 140.0)) * 2.0 - 1.0,
+        fbm(vec2(localTime * 0.017 + 160.0, localTime * 0.013 + 180.0)) * 2.0 - 1.0
+      ) * 0.4;
+      
+      vec2 randomWalkOffset4 = vec2(
+        fbm(vec2(localTime * 0.016 + 200.0, localTime * 0.012 + 220.0)) * 2.0 - 1.0,
+        fbm(vec2(localTime * 0.018 + 240.0, localTime * 0.014 + 260.0)) * 2.0 - 1.0
+      ) * 0.4;
+      
       // Create slow-moving growth/shrinkage field centers
       // These are the centers of areas where clouds grow or shrink
       // MODIFIED: Use more varied positions and movements to avoid central patterns
+      // NEW: Add random walk offsets for non-repeating movement
       vec2 growthField1Center = vec2(
-        0.3 + 0.8 * cos(localTime * 0.03),
-        0.4 + 0.7 * sin(localTime * 0.05)
+        0.3 + 0.5 * cos(localTime * 0.03) + randomWalkOffset1.x,
+        0.4 + 0.5 * sin(localTime * 0.05) + randomWalkOffset1.y
       );
       
       vec2 growthField2Center = vec2(
-        0.7 + 0.6 * cos(localTime * 0.04 + 2.1),
-        0.3 + 0.6 * sin(localTime * 0.06 + 1.3)
+        0.7 + 0.4 * cos(localTime * 0.04 + 2.1) + randomWalkOffset2.x,
+        0.3 + 0.4 * sin(localTime * 0.06 + 1.3) + randomWalkOffset2.y
       );
       
       vec2 shrinkField1Center = vec2(
-        0.2 + 0.65 * cos(localTime * 0.035 + 3.7),
-        0.7 + 0.65 * sin(localTime * 0.045 + 4.2)
+        0.2 + 0.45 * cos(localTime * 0.035 + 3.7) + randomWalkOffset3.x,
+        0.7 + 0.45 * sin(localTime * 0.045 + 4.2) + randomWalkOffset3.y
       );
       
       vec2 shrinkField2Center = vec2(
-        0.8 + 0.75 * cos(localTime * 0.025 + 5.3),
-        0.6 + 0.75 * sin(localTime * 0.055 + 0.7)
+        0.8 + 0.5 * cos(localTime * 0.025 + 5.3) + randomWalkOffset4.x,
+        0.6 + 0.5 * sin(localTime * 0.055 + 0.7) + randomWalkOffset4.y
       );
       
       // Add more growth/shrinkage fields to create a more distributed pattern
+      // NEW: Add random walk offsets for these fields too
       vec2 growthField3Center = vec2(
-        0.5 + 0.7 * cos(localTime * 0.022 + 1.1),
-        0.2 + 0.6 * sin(localTime * 0.033 + 2.2)
+        0.5 + 0.45 * cos(localTime * 0.022 + 1.1) + randomWalkOffset2.y, // Mix up the offsets
+        0.2 + 0.45 * sin(localTime * 0.033 + 2.2) + randomWalkOffset1.x
       );
       
       vec2 shrinkField3Center = vec2(
-        0.4 + 0.6 * cos(localTime * 0.027 + 4.3),
-        0.8 + 0.7 * sin(localTime * 0.038 + 3.4)
+        0.4 + 0.4 * cos(localTime * 0.027 + 4.3) + randomWalkOffset4.y,
+        0.8 + 0.4 * sin(localTime * 0.038 + 3.4) + randomWalkOffset3.x
+      );
+      
+      // ENHANCED: Add more growth/shrinkage fields for increased variation
+      // Create additional field centers with different movement patterns
+      // NEW: Add random walk offsets for these fields too
+      vec2 growthField4Center = vec2(
+        0.6 + 0.35 * cos(localTime * 0.019 + 2.7) + randomWalkOffset3.y,
+        0.7 + 0.35 * sin(localTime * 0.026 + 3.1) + randomWalkOffset4.x
+      );
+      
+      vec2 shrinkField4Center = vec2(
+        0.3 + 0.4 * cos(localTime * 0.023 + 5.9) + randomWalkOffset1.y,
+        0.4 + 0.4 * sin(localTime * 0.031 + 4.5) + randomWalkOffset2.x
+      );
+      
+      // NEW: Add completely random-walk based fields that don't follow circular paths
+      vec2 growthField5Center = vec2(
+        0.5 + fbm(vec2(localTime * 0.008, localTime * 0.012 + 300.0)) * 0.8 - 0.4,
+        0.5 + fbm(vec2(localTime * 0.01 + 350.0, localTime * 0.009)) * 0.8 - 0.4
+      );
+      
+      vec2 shrinkField5Center = vec2(
+        0.5 + fbm(vec2(localTime * 0.011 + 400.0, localTime * 0.007 + 450.0)) * 0.8 - 0.4,
+        0.5 + fbm(vec2(localTime * 0.009 + 500.0, localTime * 0.013 + 550.0)) * 0.8 - 0.4
       );
       
       // Calculate distances to growth/shrinkage field centers
       float distToGrowth1 = length(uv - growthField1Center);
       float distToGrowth2 = length(uv - growthField2Center);
       float distToGrowth3 = length(uv - growthField3Center);
+      float distToGrowth4 = length(uv - growthField4Center);
+      float distToGrowth5 = length(uv - growthField5Center);
       float distToShrink1 = length(uv - shrinkField1Center);
       float distToShrink2 = length(uv - shrinkField2Center);
       float distToShrink3 = length(uv - shrinkField3Center);
+      float distToShrink4 = length(uv - shrinkField4Center);
+      float distToShrink5 = length(uv - shrinkField5Center);
+      
+      // NEW: Create random walk for field sizes
+      // This makes the fields grow and shrink in non-repeating patterns
+      float sizeRandomWalk1 = fbm(vec2(localTime * 0.05, localTime * 0.06)) * 0.15;
+      float sizeRandomWalk2 = fbm(vec2(localTime * 0.055 + 100.0, localTime * 0.065 + 50.0)) * 0.15;
+      float sizeRandomWalk3 = fbm(vec2(localTime * 0.045 + 200.0, localTime * 0.07 + 150.0)) * 0.15;
       
       // Create smooth falloff for growth/shrinkage fields
       // These fields have varying sizes that pulse over time
-      float growthField1Size = 0.3 + 0.1 * sin(localTime * 0.1);
-      float growthField2Size = 0.25 + 0.08 * sin(localTime * 0.12 + 1.5);
-      float growthField3Size = 0.28 + 0.09 * sin(localTime * 0.11 + 2.5);
-      float shrinkField1Size = 0.28 + 0.09 * sin(localTime * 0.09 + 2.7);
-      float shrinkField2Size = 0.32 + 0.11 * sin(localTime * 0.11 + 3.9);
-      float shrinkField3Size = 0.26 + 0.10 * sin(localTime * 0.10 + 4.9);
+      // NEW: Add random walk to the sizes for non-repeating patterns
+      float growthField1Size = 0.25 + 0.1 * sin(localTime * 0.1) + sizeRandomWalk1;
+      float growthField2Size = 0.2 + 0.08 * sin(localTime * 0.12 + 1.5) + sizeRandomWalk2;
+      float growthField3Size = 0.23 + 0.09 * sin(localTime * 0.11 + 2.5) + sizeRandomWalk3;
+      float growthField4Size = 0.18 + 0.07 * sin(localTime * 0.13 + 3.2) + sizeRandomWalk1;
+      float growthField5Size = 0.22 + fbm(vec2(localTime * 0.06 + 600.0, localTime * 0.08 + 650.0)) * 0.2;
+      
+      float shrinkField1Size = 0.23 + 0.09 * sin(localTime * 0.09 + 2.7) + sizeRandomWalk2;
+      float shrinkField2Size = 0.27 + 0.11 * sin(localTime * 0.11 + 3.9) + sizeRandomWalk3;
+      float shrinkField3Size = 0.21 + 0.1 * sin(localTime * 0.1 + 4.9) + sizeRandomWalk1;
+      float shrinkField4Size = 0.19 + 0.08 * sin(localTime * 0.12 + 5.7) + sizeRandomWalk2;
+      float shrinkField5Size = 0.24 + fbm(vec2(localTime * 0.07 + 700.0, localTime * 0.09 + 750.0)) * 0.2;
       
       // Create wider transition zones for smoother blending between growth and shrinkage
       float growthField1Outer = growthField1Size * 1.8;
       float growthField2Outer = growthField2Size * 1.8;
       float growthField3Outer = growthField3Size * 1.8;
+      float growthField4Outer = growthField4Size * 1.8;
+      float growthField5Outer = growthField5Size * 1.8;
       float shrinkField1Outer = shrinkField1Size * 1.8;
       float shrinkField2Outer = shrinkField2Size * 1.8;
       float shrinkField3Outer = shrinkField3Size * 1.8;
+      float shrinkField4Outer = shrinkField4Size * 1.8;
+      float shrinkField5Outer = shrinkField5Size * 1.8;
       
       // Calculate field influence with much smoother falloff using cubic smoothstep
       // This creates a more gradual transition at the edges
@@ -261,6 +345,12 @@
       float growthField3 = smoothstep(growthField3Outer, 0.0, distToGrowth3);
       growthField3 = growthField3 * growthField3 * (3.0 - 2.0 * growthField3);
       
+      float growthField4 = smoothstep(growthField4Outer, 0.0, distToGrowth4);
+      growthField4 = growthField4 * growthField4 * (3.0 - 2.0 * growthField4);
+      
+      float growthField5 = smoothstep(growthField5Outer, 0.0, distToGrowth5);
+      growthField5 = growthField5 * growthField5 * (3.0 - 2.0 * growthField5);
+      
       float shrinkField1 = smoothstep(shrinkField1Outer, 0.0, distToShrink1);
       shrinkField1 = shrinkField1 * shrinkField1 * (3.0 - 2.0 * shrinkField1);
       
@@ -270,64 +360,157 @@
       float shrinkField3 = smoothstep(shrinkField3Outer, 0.0, distToShrink3);
       shrinkField3 = shrinkField3 * shrinkField3 * (3.0 - 2.0 * shrinkField3);
       
+      float shrinkField4 = smoothstep(shrinkField4Outer, 0.0, distToShrink4);
+      shrinkField4 = shrinkField4 * shrinkField4 * (3.0 - 2.0 * shrinkField4);
+      
+      float shrinkField5 = smoothstep(shrinkField5Outer, 0.0, distToShrink5);
+      shrinkField5 = shrinkField5 * shrinkField5 * (3.0 - 2.0 * shrinkField5);
+      
+      // NEW: Create random walk for magnitude variations
+      // This makes the strength of growth/shrinkage vary in non-repeating patterns
+      float magRandomWalk1 = fbm(vec2(localTime * 0.04, localTime * 0.035)) * 0.15;
+      float magRandomWalk2 = fbm(vec2(localTime * 0.045 + 100.0, localTime * 0.03 + 50.0)) * 0.15;
+      float magRandomWalk3 = fbm(vec2(localTime * 0.035 + 200.0, localTime * 0.05 + 150.0)) * 0.15;
+      
       // Vary the magnitude of growth/shrinkage based on position and time
-      float growthMag1 = 0.2 + 0.1 * sin(localTime * 0.17 + noise(flowPos * 0.2) * 5.0);
-      float growthMag2 = 0.15 + 0.08 * sin(localTime * 0.19 + noise(flowPos * 0.25) * 4.0);
-      float growthMag3 = 0.18 + 0.09 * sin(localTime * 0.18 + noise(flowPos * 0.22) * 4.5);
-      float shrinkMag1 = 0.18 + 0.09 * sin(localTime * 0.15 + noise(flowPos * 0.22) * 4.5);
-      float shrinkMag2 = 0.22 + 0.11 * sin(localTime * 0.13 + noise(flowPos * 0.18) * 5.5);
-      float shrinkMag3 = 0.20 + 0.10 * sin(localTime * 0.14 + noise(flowPos * 0.20) * 5.0);
+      // NEW: Add random walk to the magnitudes for non-repeating patterns
+      float growthMag1 = 0.2 + 0.1 * sin(localTime * 0.17 + noise(flowPos * 0.2) * 5.0) + magRandomWalk1;
+      float growthMag2 = 0.15 + 0.08 * sin(localTime * 0.19 + noise(flowPos * 0.25) * 4.0) + magRandomWalk2;
+      float growthMag3 = 0.18 + 0.09 * sin(localTime * 0.18 + noise(flowPos * 0.22) * 4.5) + magRandomWalk3;
+      float growthMag4 = 0.17 + 0.09 * sin(localTime * 0.16 + noise(flowPos * 0.21) * 4.8) + magRandomWalk1;
+      float growthMag5 = 0.19 + fbm(vec2(localTime * 0.05 + 600.0, localTime * 0.06 + 650.0)) * 0.2;
+      
+      float shrinkMag1 = 0.18 + 0.09 * sin(localTime * 0.15 + noise(flowPos * 0.22) * 4.5) + magRandomWalk2;
+      float shrinkMag2 = 0.22 + 0.11 * sin(localTime * 0.13 + noise(flowPos * 0.18) * 5.5) + magRandomWalk3;
+      float shrinkMag3 = 0.20 + 0.10 * sin(localTime * 0.14 + noise(flowPos * 0.20) * 5.0) + magRandomWalk1;
+      float shrinkMag4 = 0.19 + 0.10 * sin(localTime * 0.14 + noise(flowPos * 0.19) * 5.2) + magRandomWalk2;
+      float shrinkMag5 = 0.21 + fbm(vec2(localTime * 0.055 + 700.0, localTime * 0.065 + 750.0)) * 0.2;
       
       // Create a global flow field for smoother transitions
       // This field will help blend between growth and shrinkage areas
-      float transitionField = fbm(uv * 2.0 + localTime * 0.02);
+      // NEW: Use a more complex noise-based field that evolves in a non-repeating way
+      float transitionField = fbm(uv * 2.0 + vec2(
+        fbm(vec2(localTime * 0.01, localTime * 0.015)) * 0.5,
+        fbm(vec2(localTime * 0.012 + 100.0, localTime * 0.008 + 50.0)) * 0.5
+      ));
       transitionField = transitionField * 2.0 - 1.0; // Range: -1 to 1
       
       // MODIFIED: Add more complex spatial variation to the transition field
       // This helps break up any central patterns
-      transitionField += 0.3 * fbm(uv * 4.0 + localTime * 0.03);
-      transitionField *= 0.8 + 0.4 * fbm(uv * 1.5 + localTime * 0.01);
+      transitionField += 0.3 * fbm(uv * 4.0 + vec2(
+        fbm(vec2(localTime * 0.02, localTime * 0.025)) * 0.5,
+        fbm(vec2(localTime * 0.022 + 200.0, localTime * 0.018 + 150.0)) * 0.5
+      ));
+      transitionField *= 0.8 + 0.4 * fbm(uv * 1.5 + vec2(
+        fbm(vec2(localTime * 0.015, localTime * 0.01)) * 0.5,
+        fbm(vec2(localTime * 0.011 + 300.0, localTime * 0.016 + 250.0)) * 0.5
+      ));
       transitionField = clamp(transitionField, -1.0, 1.0);
       
       // Apply the transition field to soften the contrast between growth and shrinkage
       growthField1 *= 0.8 + 0.2 * smoothstep(-1.0, 1.0, transitionField);
       growthField2 *= 0.8 + 0.2 * smoothstep(-0.8, 0.8, transitionField + 0.2);
       growthField3 *= 0.8 + 0.2 * smoothstep(-0.9, 0.9, transitionField - 0.1);
+      growthField4 *= 0.8 + 0.2 * smoothstep(-0.85, 0.85, transitionField + 0.15);
+      growthField5 *= 0.8 + 0.2 * smoothstep(-0.95, 0.95, transitionField - 0.05);
+      
       shrinkField1 *= 0.8 + 0.2 * smoothstep(1.0, -1.0, transitionField - 0.1);
       shrinkField2 *= 0.8 + 0.2 * smoothstep(0.8, -0.8, transitionField - 0.3);
       shrinkField3 *= 0.8 + 0.2 * smoothstep(0.9, -0.9, transitionField + 0.2);
+      shrinkField4 *= 0.8 + 0.2 * smoothstep(0.85, -0.85, transitionField - 0.25);
+      shrinkField5 *= 0.8 + 0.2 * smoothstep(0.95, -0.95, transitionField + 0.15);
       
       // Create a neutral zone where neither growth nor shrinkage dominates
       // This helps create smoother transitions between opposing forces
-      float neutralZone = fbm(uv * 3.0 + localTime * 0.04) * 0.5;
+      // NEW: Use a more complex noise-based field that evolves in a non-repeating way
+      float neutralZone = fbm(uv * 3.0 + vec2(
+        fbm(vec2(localTime * 0.018, localTime * 0.022)) * 0.5,
+        fbm(vec2(localTime * 0.02 + 400.0, localTime * 0.016 + 350.0)) * 0.5
+      )) * 0.5;
       
       // MODIFIED: Add more spatial variation to the neutral zone
-      neutralZone = mix(neutralZone, fbm(uv * 5.0 + localTime * 0.06) * 0.5, 0.4);
+      neutralZone = mix(neutralZone, fbm(uv * 5.0 + vec2(
+        fbm(vec2(localTime * 0.025, localTime * 0.015)) * 0.5,
+        fbm(vec2(localTime * 0.017 + 500.0, localTime * 0.023 + 450.0)) * 0.5
+      )) * 0.5, 0.4);
+      
+      // ENHANCED: Create micro-variation zones for more detailed growth/shrink patterns
+      // NEW: Use a more complex noise-based field that evolves in a non-repeating way
+      float microVariation = fbm(uv * 7.0 + vec2(
+        fbm(vec2(localTime * 0.03, localTime * 0.035)) * 0.5,
+        fbm(vec2(localTime * 0.032 + 600.0, localTime * 0.028 + 550.0)) * 0.5
+      )) * 2.0 - 1.0;
       
       // Combine growth and shrinkage fields with smoother blending
-      float growthComponent = growthField1 * growthMag1 + growthField2 * growthMag2 + growthField3 * growthMag3;
-      float shrinkComponent = shrinkField1 * shrinkMag1 + shrinkField2 * shrinkMag2 + shrinkField3 * shrinkMag3;
+      // ENHANCED: Allow growth and shrinkage fields to coexist more independently
+      float growthComponent = growthField1 * growthMag1 + growthField2 * growthMag2 + 
+                             growthField3 * growthMag3 + growthField4 * growthMag4 +
+                             growthField5 * growthMag5;
+      
+      float shrinkComponent = shrinkField1 * shrinkMag1 + shrinkField2 * shrinkMag2 + 
+                             shrinkField3 * shrinkMag3 + shrinkField4 * shrinkMag4 +
+                             shrinkField5 * shrinkMag5;
+      
+      // ENHANCED: Create a more complex interaction between growth and shrinkage
+      // Instead of simple subtraction, create a more nuanced relationship
+      // This allows areas to simultaneously grow and shrink in different ways
+      // NEW: Use a more complex noise-based field that evolves in a non-repeating way
+      float growthDominance = fbm(uv * 2.2 + vec2(
+        fbm(vec2(localTime * 0.014, localTime * 0.019)) * 0.5,
+        fbm(vec2(localTime * 0.017 + 700.0, localTime * 0.013 + 650.0)) * 0.5
+      )) * 0.6 + 0.2; // Range: 0.2 to 0.8
+      float shrinkDominance = 1.0 - growthDominance;
       
       // Calculate the difference between growth and shrinkage with a neutral buffer
-      float growthDiff = growthComponent - shrinkComponent;
+      // ENHANCED: Use the dominance factors to create more varied interactions
+      float growthDiff = (growthComponent * growthDominance) - (shrinkComponent * shrinkDominance);
       
       // MODIFIED: Add spatial variation to the growth difference
       // This helps eliminate any central patterns
-      growthDiff *= 0.8 + 0.4 * fbm(uv * 2.5 + localTime * 0.05);
+      // NEW: Use a more complex noise-based field that evolves in a non-repeating way
+      growthDiff *= 0.8 + 0.4 * fbm(uv * 2.5 + vec2(
+        fbm(vec2(localTime * 0.021, localTime * 0.016)) * 0.5,
+        fbm(vec2(localTime * 0.018 + 800.0, localTime * 0.024 + 750.0)) * 0.5
+      ));
+      
+      // ENHANCED: Add micro-variation to create more detailed patterns
+      growthDiff += microVariation * 0.08;
       
       // Apply a soft threshold to create a neutral zone where forces are balanced
-      float softThreshold = smoothstep(-0.15, 0.15, growthDiff) * 2.0 - 1.0;
+      // ENHANCED: Use a wider threshold range for more gradual transitions
+      float softThreshold = smoothstep(-0.18, 0.18, growthDiff) * 2.0 - 1.0;
+      
+      // ENHANCED: Create areas where growth and shrinkage can happen simultaneously
+      // This creates more complex cloud evolution patterns
+      // NEW: Use a more complex noise-based field that evolves in a non-repeating way
+      float simultaneousFactor = fbm(uv * 3.5 + vec2(
+        fbm(vec2(localTime * 0.026, localTime * 0.019)) * 0.5,
+        fbm(vec2(localTime * 0.023 + 900.0, localTime * 0.027 + 850.0)) * 0.5
+      )) * 0.5;
+      float simultaneousEffect = (growthComponent * shrinkComponent) * 0.5 * simultaneousFactor;
       
       // Blend with the neutral zone to create areas of stability
-      float growthFieldInfluence = mix(growthDiff, softThreshold * max(growthComponent, shrinkComponent), neutralZone);
+      // ENHANCED: Incorporate the simultaneous effect for more complex patterns
+      float growthFieldInfluence = mix(
+          growthDiff + simultaneousEffect * sign(growthDiff), 
+          softThreshold * max(growthComponent, shrinkComponent), 
+          neutralZone
+      );
       
       // Add layered noise at different scales for more natural transitions
       growthFieldInfluence += fbm(uv * 4.0 + localTime * 0.1) * 0.05;
       growthFieldInfluence += fbm(uv * 8.0 + localTime * 0.2) * 0.025;
       growthFieldInfluence += fbm(uv * 16.0 + localTime * 0.3) * 0.0125;
       
+      // ENHANCED: Add high-frequency detail for more localized variation
+      growthFieldInfluence += fbm(uv * 24.0 + localTime * 0.4) * 0.008;
+      
       // MODIFIED: Add more complex spatial variation to break up any central patterns
       growthFieldInfluence *= 0.9 + 0.2 * fbm(uv * 3.5 + localTime * 0.15);
+      
+      // ENHANCED: Create small pockets of extreme growth/shrinkage for more dynamic evolution
+      float extremePockets = pow(fbm(uv * 5.0 + localTime * 0.12), 3.0) * 2.0 - 1.0;
+      growthFieldInfluence = mix(growthFieldInfluence, extremePockets * 0.8, 0.15);
       
       // Apply a final smoothing to the overall influence
       growthFieldInfluence = growthFieldInfluence * 0.8; // Reduce overall intensity for subtler effect
